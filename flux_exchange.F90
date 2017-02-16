@@ -516,6 +516,9 @@ module flux_exchange_mod
        ocean_ice_boundary_type, atmos_ice_boundary_type, Ice_stock_pe
   use    land_model_mod, only:  land_data_type, atmos_land_boundary_type
 
+  use hurricane_wind_mod, only: hurricane_wind_step
+  use hurricane_types_mod, only: hurricane_type
+
   use  surface_flux_mod, only: surface_flux, surface_flux_init
   use monin_obukhov_mod, only: mo_profile     
 
@@ -599,7 +602,8 @@ private
      flux_check_stocks,    &
      flux_init_stocks,     &
      flux_ice_to_ocean_stocks,&
-     flux_ocean_from_ice_stocks
+     flux_ocean_from_ice_stocks,&
+     do_hurricane
 
 !-----------------------------------------------------------------------
   character(len=128) :: version = '$Id$'
@@ -659,6 +663,7 @@ real, parameter :: d378 = 1.0-d622
   logical :: divert_stocks_report = .FALSE.
   logical :: do_runoff = .TRUE. !< Turns on/off the land runoff interpolation to the ocean
   logical :: do_forecast = .false.
+  logical :: do_hurricane = .true.
   integer :: nblocks = 1
 
   logical :: partition_fprec_from_lprec = .FALSE.  !< option for ATM override experiments where liquid+frozen precip are combined
@@ -671,7 +676,7 @@ real, parameter :: d378 = 1.0-d622
 
   namelist /flux_exchange_nml/ z_ref_heat, z_ref_mom, ex_u_star_smooth_bug, sw1way_bug,&
      & do_area_weighted_flux, debug_stocks, divert_stocks_report, do_runoff, do_forecast, nblocks,&
-     & partition_fprec_from_lprec, scale_precip_2d
+     & partition_fprec_from_lprec, scale_precip_2d, do_hurricane
 
   integer              :: my_nblocks = 1
   integer, allocatable :: block_start(:), block_end(:)
@@ -1472,13 +1477,14 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
 !!
 !! \throw FATAL, "must call flux_exchange_init first"
 !!    flux_exchange_init has not been called before calling sfc_boundary_layer.
-subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundary )
+subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundary, Hurricane )
 
   real,                  intent(in)  :: dt !< Time step
   type(time_type),       intent(in)  :: Time !< Current time
   type(atmos_data_type), intent(inout)  :: Atm !< A derived data type to specify atmosphere boundary data
   type(land_data_type),  intent(inout)  :: Land !< A derived data type to specify land boundary data
   type(ice_data_type),   intent(inout)  :: Ice !< A derived data type to specify ice boundary data
+  type(hurricane_type),  intent(inout)  :: Hurricane
   type(land_ice_atmos_boundary_type), intent(inout) :: Land_Ice_Atmos_Boundary !< A derived data type to specify properties and
                                                                                !! fluxes passed from exchange grid to the atmosphere,
                                                                                !! land and ice
@@ -1768,6 +1774,8 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
   call put_to_xgrid (Atm%p_surf, 'ATM', ex_p_surf, xmap_sfc, remap_method=remap_method, complete=.false.)
   call put_to_xgrid (Atm%slp,    'ATM', ex_slp,    xmap_sfc, remap_method=remap_method, complete=.false.)
   call put_to_xgrid (Atm%gust,   'ATM', ex_gust,   xmap_sfc, remap_method=remap_method, complete=.true.)
+
+  if(do_hurricane) call hurricane_wind_step(Hurricane,Atm,ex_u_atm,ex_v_atm,xmap_sfc,Time)
 
   ! slm, Mar 20 2002: changed order in whith the data transferred from ice and land 
   ! grids, to fill t_ca first with t_surf over ocean and then with t_ca from 
