@@ -176,7 +176,8 @@ logical :: ncar_ocean_flux_orig  = .false. !< Use NCAR climate model turbulent f
                                            !! new experiments.
 logical :: raoult_sat_vap        = .false. !< Reduce saturation vapor pressure to account for seawater
 logical :: do_simple             = .false.
-
+logical :: do_moon               = .false.
+real    :: u_trans               = 0.0
 
 namelist /surface_flux_nml/ no_neg_q,             &
                             use_virtual_temp,     &
@@ -188,7 +189,9 @@ namelist /surface_flux_nml/ no_neg_q,             &
                             ncar_ocean_flux,      &
                             ncar_ocean_flux_orig, &
                             raoult_sat_vap,       &
-                            do_simple
+                            do_simple,            &
+                            do_moon,              &
+                            u_trans
 
 
 
@@ -711,7 +714,7 @@ real   , intent(inout), dimension(:) :: cd, ch, ce, ustar, bstar
   real :: cd_n10, ce_n10, ch_n10, cd_n10_rt    ! neutral 10m drag coefficients
   real :: cd_rt                                ! full drag coefficients @ z
   real :: zeta, x2, x, psi_m, psi_h            ! stability parameters
-  real :: u, u10, tv, tstar, qstar, z0, xx, stab
+  real :: u, u10, tv, tstar, qstar, z0, xx, stab, w10
   integer, parameter :: n_itts = 2
   integer               i, j
 
@@ -807,7 +810,14 @@ real   , intent(inout), dimension(:) :: cd, ch, ce, ustar, bstar
                 end if
 
                 u10 = u/(1+cd_n10_rt*(log(z(i)/10)-psi_m)/vonkarm);       ! L-Y eqn. 9
-                cd_n10 = (2.7/u10+0.142+0.0764*u10)/1e3;                  ! L-Y eqn. 6a again
+                if(do_moon.and.u10.ge.u_trans) then
+                  w10 = 2.458 + ustar(i)*(20.255-0.56*ustar(i))  ! Eq(7) Moon et al.
+                  z0 = 0.001*(0.085*w10 - 0.58)
+                  z0 = min( z0, 2.82E-3)
+                  cd_n10 =  (vonkarm/log(10/z0))**2
+                else
+                  cd_n10 = (2.7/u10+0.142+0.0764*u10)/1e3;                  ! L-Y eqn. 6a again
+                end if
                 cd_n10_rt = sqrt(cd_n10);
                 ce_n10 = 34.6*cd_n10_rt/1e3;                              ! L-Y eqn. 6b again
                 stab = 0.5 + sign(0.5,zeta)
