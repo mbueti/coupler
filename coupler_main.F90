@@ -401,11 +401,6 @@ program coupler_main
   use flux_exchange_mod,       only: flux_ocean_from_ice_stocks, flux_ice_to_ocean_stocks
   use flux_exchange_mod,       only: flux_atmos_to_ocean, flux_ex_arrays_dealloc
 
-  use flux_exchange_mod,       only: do_hurricane
-  
-  use hurricane_wind_mod,       only: hurricane_wind_init 
-  use hurricane_types_mod,      only: hurricane_type
-
   use atmos_tracer_driver_mod, only: atmos_tracer_driver_gather_data
 
   use mpp_mod,                 only: mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_chksum
@@ -435,7 +430,6 @@ program coupler_main
   type (atmos_data_type) :: Atm
   type  (land_data_type) :: Land
   type   (ice_data_type) :: Ice
-  type(hurricane_type) :: Hurricane
   ! allow members of ocean type to be aliased (ap)
   type (ocean_public_type), target :: Ocean
   type (ocean_state_type),  pointer :: Ocean_state => NULL()
@@ -820,7 +814,7 @@ program coupler_main
         if (do_flux) then
           call mpp_clock_begin(newClockb)
           call sfc_boundary_layer( REAL(dt_atmos), Time_atmos, &
-               Atm, Land, Ice, Land_ice_atmos_boundary, Hurricane )
+               Atm, Land, Ice, Land_ice_atmos_boundary )
           if (do_chksum)  call atmos_ice_land_chksum('sfc+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
                  Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
           call mpp_clock_end(newClockb)
@@ -1060,7 +1054,8 @@ program coupler_main
         call mpp_set_current_pelist()
 
       if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
-        if (slow_ice_with_ocean) call mpp_set_current_pelist(Ocean%pelist)
+        ! If the slow ice is on a subset of the ocean PEs, use the ocean PElist.
+        call mpp_set_current_pelist(slow_ice_ocean_pelist)
         call mpp_clock_begin(newClock3)
         call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
         Time_flux_ice_to_ocean = Time
@@ -1926,7 +1921,6 @@ contains
     Time_atmos = Time
     Time_ocean = Time
 
-    call hurricane_wind_init(Hurricane,Atm,Time)
 !
 !       read in extra fields for the air-sea gas fluxes
 !

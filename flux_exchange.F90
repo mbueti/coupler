@@ -522,8 +522,6 @@ module flux_exchange_mod
   use ocean_model_mod,    only: ocean_state_type
   use ice_model_mod,      only: ice_data_type, land_ice_boundary_type, &
                                 ocean_ice_boundary_type, atmos_ice_boundary_type, Ice_stock_pe
-  use hurricane_wind_mod, only: hurricane_wind_step
-  use hurricane_types_mod, only: hurricane_type
   use land_model_mod,     only: land_data_type, atmos_land_boundary_type
   use xgrid_mod,          only: get_ocean_model_area_elements
   use  time_manager_mod,  only: time_type
@@ -576,7 +574,6 @@ module flux_exchange_mod
      flux_init_stocks,     &
      flux_ice_to_ocean_stocks,&
      flux_ocean_from_ice_stocks,&
-     do_hurricane,&
      send_ice_mask_sic
 
   !-----------------------------------------------------------------------
@@ -602,7 +599,6 @@ module flux_exchange_mod
   logical :: divert_stocks_report = .FALSE.
   logical :: do_runoff = .TRUE. !< Turns on/off the land runoff interpolation to the ocean
   logical :: do_forecast = .false.
-  logical :: do_hurricane = .true.
   integer :: nblocks = 1
 
   logical :: partition_fprec_from_lprec = .FALSE.  !< option for ATM override experiments where liquid+frozen precip are combined
@@ -613,7 +609,7 @@ module flux_exchange_mod
 
   namelist /flux_exchange_nml/ z_ref_heat, z_ref_mom, ex_u_star_smooth_bug, sw1way_bug,&
        & do_area_weighted_flux, debug_stocks, divert_stocks_report, do_runoff, do_forecast, nblocks,&
-       & partition_fprec_from_lprec, scale_precip_2d, do_hurricane
+       & partition_fprec_from_lprec, scale_precip_2d
 
   logical :: gas_fluxes_initialized = .false.  ! This is set to true when the following types are initialized.
   type(coupler_1d_bc_type), target :: ex_gas_fields_atm  ! gas fields in atm
